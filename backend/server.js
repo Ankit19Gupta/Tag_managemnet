@@ -7,6 +7,7 @@ const productRoutes = require("./routes/productRoutes");
 const collectionRoutes = require("./routes/collectionRoutes");
 const ruleRoutes = require("./routes/ruleRoutes");
 const cors = require("cors");
+const authRoutes = require("./routes/authRoutes");
 
 const app = express();
 app.use(bodyParser.json());
@@ -14,8 +15,9 @@ app.use(cors());
 
 // Use Routes
 app.use("/api/products", productRoutes);
-app.use("/api/collections", collectionRoutes);
 app.use("/api/rules", ruleRoutes);
+app.use("/api/collections", collectionRoutes);
+app.use("/api/auth", authRoutes);
 
 function startScheduler() {
   cron.schedule(

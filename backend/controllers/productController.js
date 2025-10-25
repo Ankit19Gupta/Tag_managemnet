@@ -149,11 +149,11 @@ exports.createProduct = async (req, res) => {
 /*
 // Dummy Product Model
 const Product = function(data) {
-    this.save = async () => { 
-        if (data.sku === 'DUP-SKU') { 
-            throw { code: 11000 }; 
-        } 
-        return { ...data, _id: 'dummy-id' }; 
+    this.save = async () => {
+        if (data.sku === 'DUP-SKU') {
+            throw { code: 11000 };
+        }
+        return { ...data, _id: 'dummy-id' };
     };
 };
 
@@ -299,3 +299,276 @@ exports.triggerAllActiveTags = async (req, res) => {
 
 exports.applyTagToProduct = applyTagToProduct;
 exports.removeTagFromProduct = removeTagFromProduct;
+
+// const Product = require("../models/Product");
+// const { uploadToCloudinary } = require("../config/cloudinary");
+// const {
+//   runJustInTagging,
+//   runBestSellerTagging,
+//   runLimitedUnitsTagging,
+//   runRealTimeRulesOnProduct, // <-- NEW: Import for real-time tagging
+// } = require("./ruleControllers");
+
+// // Create a new product with image upload
+// exports.createProduct = async (req, res) => {
+//   try {
+//     // Destructure all required and new fields
+//     const {
+//       title,
+//       sku,
+//       price,
+//       stock,
+//       description,
+//       tags,
+//       collections,
+//       mainImageBase64,
+//     } = req.body;
+
+//     let mainImageUrl = "";
+
+//     // ----------------------------------------------------------------------
+//     // 1. IMAGE UPLOAD LOGIC
+//     // ----------------------------------------------------------------------
+
+//     if (
+//       mainImageBase64 &&
+//       typeof mainImageBase64 === "string" &&
+//       mainImageBase64.length > 0
+//     ) {
+//       console.log("Uploading image via Base64 string...");
+//       const result = await uploadToCloudinary(
+//         mainImageBase64,
+//         "product-images"
+//       );
+//       mainImageUrl = result.secure_url;
+//     } else if (req.file) {
+//       console.log("Uploading image via req.file (multipart form data)...");
+//       const result = await uploadToCloudinary(req.file.path, "product-images");
+//       mainImageUrl = result.secure_url;
+//     }
+
+//     // ----------------------------------------------------------------------
+//     // 2. PRODUCT CREATION
+//     // ----------------------------------------------------------------------
+
+//     const processedTags = tags ? tags.split(",").map((tag) => tag.trim()) : [];
+//     const processedCollections = collections
+//       ? collections.split(",").map((id) => id.trim())
+//       : [];
+
+//     const newProduct = new Product({
+//       title,
+//       sku,
+//       price,
+//       stock,
+//       description,
+//       mainImageUrl,
+//       tags: processedTags,
+//       collections: processedCollections,
+//       publishedAt: new Date(), // Set publishedAt for the Just In rule check
+//     });
+
+//     let product = await newProduct.save();
+
+//     // ----------------------------------------------------------------------
+//     // NEW INTEGRATION: Apply real-time rules immediately after creation
+//     await runRealTimeRulesOnProduct(product);
+
+//     // Fetch the updated product to include any new tags applied by rules
+//     product = await Product.findById(product._id).populate("collections");
+//     // ----------------------------------------------------------------------
+
+//     res.status(201).json({ success: true, product });
+//   } catch (error) {
+//     // ----------------------------------------------------------------------
+//     // 3. ERROR HANDLING
+//     // ----------------------------------------------------------------------
+
+//     if (error.code === 11000) {
+//       console.error("Duplicate SKU error:", error);
+//       return res.status(400).json({
+//         success: false,
+//         message: "SKU already exists. Please choose a unique identifier.",
+//       });
+//     }
+
+//     console.error("Error creating product:", error);
+//     res.status(500).json({ success: false, message: error.message });
+//   }
+// };
+
+// // Get all products with filtering by tags.
+// exports.getProducts = async (req, res) => {
+//   try {
+//     const { tag, search } = req.query;
+//     let filter = {};
+
+//     if (tag) {
+//       filter.tags = tag;
+//     }
+
+//     if (search) {
+//       filter.$or = [
+//         { title: { $regex: search, $options: "i" } },
+//         { sku: { $regex: search, $options: "i" } },
+//         { description: { $regex: search, $options: "i" } },
+//       ];
+//     }
+
+//     const products = await Product.find(filter).populate("collections");
+//     res.status(200).json({ success: true, count: products.length, products });
+//   } catch (error) {
+//     res.status(500).json({ success: false, message: error.message });
+//   }
+// };
+
+// // Get a single product by ID
+// exports.getProductById = async (req, res) => {
+//   try {
+//     const product = await Product.findById(req.params.id).populate(
+//       "collections"
+//     );
+//     if (!product) {
+//       return res
+//         .status(404)
+//         .json({ success: false, message: "Product not found" });
+//     }
+//     res.status(200).json({ success: true, product });
+//   } catch (error) {
+//     res.status(500).json({ success: false, message: error.message });
+//   }
+// };
+
+// // Update a product
+// exports.updateProduct = async (req, res) => {
+//   try {
+//     const { title, price, stock, description, tags, collections } = req.body;
+//     let updateData = {
+//       title,
+//       price,
+//       stock,
+//       description,
+//       tags: tags ? tags.split(",").map((tag) => tag.trim()) : undefined,
+//       collections: collections
+//         ? collections.split(",").map((id) => id.trim())
+//         : undefined,
+//     };
+
+//     // Clean up undefined fields
+//     Object.keys(updateData).forEach(
+//       (key) => updateData[key] === undefined && delete updateData[key]
+//     );
+
+//     if (req.file) {
+//       const result = await uploadToCloudinary(req.file.path, "product-images");
+//       updateData.mainImageUrl = result.secure_url;
+//     }
+
+//     let product = await Product.findByIdAndUpdate(req.params.id, updateData, {
+//       new: true,
+//       runValidators: true,
+//     });
+
+//     if (!product) {
+//       return res
+//         .status(404)
+//         .json({ success: false, message: "Product not found" });
+//     }
+
+//     // ----------------------------------------------------------------------
+//     // NEW INTEGRATION: Apply real-time rules immediately after update
+//     await runRealTimeRulesOnProduct(product);
+//     // ----------------------------------------------------------------------
+
+//     res.status(200).json({ success: true, product });
+//   } catch (error) {
+//     res.status(500).json({ success: false, message: error.message });
+//   }
+// };
+
+// // Delete a product
+// exports.deleteProduct = async (req, res) => {
+//   try {
+//     const product = await Product.findByIdAndDelete(req.params.id);
+//     if (!product) {
+//       return res
+//         .status(404)
+//         .json({ success: false, message: "Product not found" });
+//     }
+//     res
+//       .status(200)
+//       .json({ success: true, message: "Product deleted successfully" });
+//   } catch (error) {
+//     res.status(500).json({ success: false, message: error.message });
+//   }
+// };
+
+// /**
+//  * @description NEW: Gets the count of products associated with a specific tag.
+//  * @route GET /api/products/count/:tagName
+//  * @access Public
+//  */
+// exports.getProductsByTagCount = async (req, res) => {
+//   try {
+//     const tagName = req.params.tagName;
+//     if (!tagName) {
+//       return res.status(400).json({
+//         success: false,
+//         message: "Tag name must be provided in the URL.",
+//       });
+//     }
+
+//     // Find the total count of products that contain the given tag
+//     const count = await Product.countDocuments({ tags: tagName });
+
+//     res.status(200).json({
+//       success: true,
+//       tagName: tagName,
+//       count: count,
+//       message: `${count} products found with the tag '${tagName}'.`,
+//     });
+//   } catch (error) {
+//     console.error(`Error counting products for tag ${tagName}:`, error.message);
+//     res
+//       .status(500)
+//       .json({ success: false, message: "Failed to fetch product count." });
+//   }
+// };
+
+// const applyTagToProduct = async (productId, tagName) => {
+//   // $addToSet ensures the tag is added only if it doesn't exist
+//   await Product.updateOne({ _id: productId }, { $addToSet: { tags: tagName } });
+// };
+
+// const removeTagFromProduct = async (productId, tagName) => {
+//   // $pull removes the tag from the array
+//   await Product.updateOne({ _id: productId }, { $pull: { tags: tagName } });
+// };
+
+// exports.triggerAllActiveTags = async (req, res) => {
+//   try {
+//     const justInResult = await runJustInTagging();
+//     const limitedUnitsResult = await runLimitedUnitsTagging();
+//     const bestSellerResult = await runBestSellerTagging();
+
+//     res.status(200).json({
+//       success: true,
+//       message: "All active tagging rules triggered successfully.",
+//       results: {
+//         justIn: justInResult,
+//         limitedUnits: limitedUnitsResult,
+//         bestSeller: bestSellerResult,
+//       },
+//     });
+//   } catch (error) {
+//     console.error("Error triggering tags:", error.message);
+//     res.status(500).json({
+//       success: false,
+//       message: "Failed to trigger tags: " + error.message,
+//     });
+//   }
+// };
+
+// exports.applyTagToProduct = applyTagToProduct;
+// exports.removeTagFromProduct = removeTagFromProduct;
+// exports.getProductsByTagCount = exports.getProductsByTagCount;
